@@ -166,11 +166,11 @@ values."
    dotspacemacs-colorize-cursor-according-to-state t
    ;; Default font, or prioritized list of fonts. `powerline-scale' allows to
    ;; quickly tweak the mode-line size to make separators look not too crappy.
-   dotspacemacs-default-font '("Source Code Pro"
-                               :size 13
-                               :weight normal
-                               :width normal
-                               :powerline-scale 1.1)
+   ;; dotspacemacs-default-font '("Source Code Pro"
+   ;;                            :size 13
+   ;;                            :weight normal
+   ;;                            :width normal
+   ;;                            :powerline-scale 1.1)
    ;; The leader key
    dotspacemacs-leader-key "SPC"
    ;; The key used for Emacs commands (M-x) (after pressing on the leader key).
@@ -333,9 +333,10 @@ executes.
  This function is mostly useful for variables that need to be set
 before packages are loaded. If you are unsure, you should try in setting them in
 `dotspacemacs/user-config' first."
+  (require 'org-edna)
   (require 'org-protocol)
   (require 'org-ref-glossary)
-
+  (require 'ox-reveal)
   (require 'frames-only-mode) ;; not sure if it's needed
   (custom-set-variables '(frames-only-mode t))
 
@@ -385,6 +386,7 @@ you should place your code here."
         )
 
   (with-eval-after-load 'org
+    (org-edna-load)
     (add-to-list 'org-modules 'org-protocol)
     (add-to-list 'org-modules 'org-ref-glossary)
     ;; Kill the frame if one was created for the capture
@@ -402,6 +404,11 @@ you should place your code here."
     (advice-add 'org-capture-finalize :after 'kk/delete-frame-if-neccessary)
     (advice-add 'org-capture-kill :after 'kk/delete-frame-if-neccessary)
     (advice-add 'org-capture-refile :after 'kk/delete-frame-if-neccessary)
+    (setq org-agenda-time-grid
+          (quote
+           ((daily today remove-match)
+            (900 1100 1300 1500 1700)
+            "......" "----------------")))
     (setq org-capture-templates '(
                                   ("p"
                                    "Protocol"
@@ -427,32 +434,32 @@ you should place your code here."
                                    ))))
   (use-package nix-mode
     :mode ("\\.nix\\'" "\\.nix.in\\'")
-    )
+  )
   (use-package nix-drv-mode
     :ensure nix-mode
     :mode "\\.drv\\'"
-    )
+  )
   (use-package nix-shell
     :ensure nix-mode
     :commands (nix-shell-unpack nix-shell-configure nix-shell-build)
-    )
+  )
   (use-package nix-repl
     :ensure nix-mode
     :commands (nix-repl)
-    )
+  )
   (use-package company-nixos-options
     ;;  (push 'company-nixos-options company-backends-nix-mode)
     ;;  (push 'company-capf company-backends-nix-mode)
-    )
+  )
   ;;(add-to-list 'company-capf 'company-backends-nix-mode)
   (add-to-list 'company-backends 'company-nixos-options)
 
-  (use-package nix-sandbox
-    (setq flycheck-command-wrapper-function
-          (lambda (command) (apply 'nix-shell-command (nix-current-sandbox) command))
-          flycheck-executable-find
-          (lambda (cmd) (nix-executable-find (nix-current-sandbox) cmd)))
-    )
+  ;; (use-package nix-sandbox
+  ;;  (setq flycheck-command-wrapper-function
+  ;;        (lambda (command) (apply 'nix-shell-command (nix-current-sandbox) command))
+  ;;        flycheck-executable-find
+  ;;        (lambda (cmd) (nix-executable-find (nix-current-sandbox) cmd)))
+  ;;)
 
   ;;  (use-package pdf-tools
   ;; :pin manual ;; manually update
@@ -485,7 +492,7 @@ you should place your code here."
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
    (quote
-    (intero nix-mode flycheck hlint-refactor hindent helm-hoogle haskell-snippets yasnippet company-ghci company-ghc ghc company haskell-mode cmm-mode ws-butler winum which-key volatile-highlights vi-tilde-fringe uuidgen use-package toc-org spaceline powerline restart-emacs request rainbow-delimiters popwin persp-mode pcre2el paradox spinner org-plus-contrib org-bullets open-junk-file neotree move-text macrostep lorem-ipsum linum-relative link-hint indent-guide hydra hungry-delete hl-todo highlight-parentheses highlight-numbers parent-mode highlight-indentation helm-themes helm-swoop helm-projectile helm-mode-manager helm-make projectile pkg-info epl helm-flx helm-descbinds helm-ag google-translate golden-ratio flx-ido flx fill-column-indicator fancy-battery eyebrowse expand-region exec-path-from-shell evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-surround evil-search-highlight-persist evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state smartparens evil-indent-plus evil-iedit-state iedit evil-exchange evil-escape evil-ediff evil-args evil-anzu anzu evil goto-chg undo-tree eval-sexp-fu highlight elisp-slime-nav dumb-jump f dash s diminish define-word column-enforce-mode clean-aindent-mode bind-map bind-key auto-highlight-symbol auto-compile packed aggressive-indent adaptive-wrap ace-window ace-link ace-jump-helm-line helm avy helm-core popup async))))
+    (intero nix-mode flycheck hlint-refactor hindent helm-hoogle haskell-snippets yasnippet company-ghci company-ghc ghc company haskell-mode cmm-mode ws-butler winum which-key volatile-highlights vi-tilde-fringe uuidgen use-package toc-org spaceline powerline restart-emacs request rainbow-delimiters popwin persp-mode pcre2el paradox spinner org-plus-contrib org-bullets open-junk-file neotree move-text macrostep lorem-ipsum linum-relative link-hint indent-guide hydra hungry-delete hl-todo highlight-parentheses highlight-numbers parent-mode highlight-indentation helm-themes helm-swoop helm-projectile helm-mode-manager helm-make projectile pkg-info epl helm-flx helm-descbinds helm-ag google-translate golden-ratio flx-ido flx fill-column-indicator fancy-battery eyebrowse expand-region exec-path-from-shell evil-visualstar evil-visual-mark-mode evil-unimpaired evil-tutor evil-surround evil-search-highlight-persist evil-numbers evil-nerd-commenter evil-mc evil-matchit evil-lisp-state smartparens evil-indent-plus evil-iedit-state iedit evil-exchange evil-ediff evil-args evil-anzu anzu evil goto-chg undo-tree eval-sexp-fu highlight elisp-slime-nav dumb-jump f dash s diminish define-word column-enforce-mode clean-aindent-mode bind-map bind-key auto-highlight-symbol auto-compile packed aggressive-indent adaptive-wrap ace-window ace-link ace-jump-helm-line helm avy helm-core popup async))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.

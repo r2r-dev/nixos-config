@@ -4,6 +4,10 @@
 
 { config, pkgs, ... }:
 let
+  unstableTarball =
+    fetchTarball
+      "https://github.com/NixOS/nixpkgs-channels/archive/d956f2279b8ac02bd9e48cf2a09dcb66383ab6be.tar.gz";
+
   wrapSystemdScript = (
     program: ''
       source ${config.system.build.setEnvironment}
@@ -12,13 +16,15 @@ let
   );
 in rec {
   imports =
-    [ # Include the results of the hardware scan.
+    [
+      # Include the results of the hardware scan.
       <nixos-hardware/lenovo/thinkpad/x260>
-      "${builtins.fetchTarball https://github.com/rycee/home-manager/archive/master.tar.gz}/nixos"
+      "${builtins.fetchTarball https://github.com/rycee/home-manager/archive/release-18.09.tar.gz}/nixos"
       ./hardware-configuration.nix
     ];
 
   system.stateVersion = "18.09"; # Did you read the comment?
+
   home-manager.users.qwerty = {
     home.file = {
       # spacemacs
@@ -31,29 +37,80 @@ in rec {
     };
   };
 
-  # Only keep the last 500MiB of systemd journal.
-  services.journald.extraConfig = "SystemMaxUse=500M";
 
   # Collect nix store garbage and optimise daily.
-  nix.gc.automatic = true;
-  nix.optimise.automatic = true;
+  nix = {
+   optimise.automatic = true;
+   gc.automatic = true;
+  };
 
   # Use the systemd-boot EFI boot loader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-  boot.initrd.kernelModules = [ "vfat" "nls_cp437" "nls_iso8859-1" "usbhid" "kvm-intel" ];
-  boot.initrd.luks.cryptoModules = [ "aes" "xts" "sha512" ];
-  boot.initrd.luks.yubikeySupport = true;
-  boot.initrd.luks.devices = [ {
-    name = "luksroot";
-    device = "/dev/disk/by-partlabel/cryptroot";
-    preLVM = true;
-    yubikey = {
-      storage = {
-        device = "/dev/disk/by-partlabel/efiboot";
-      };
+  boot = {
+    loader = {
+      systemd-boot.enable = true;
+      efi.canTouchEfiVariables = true;
     };
-  } ];
+    initrd = {
+      kernelModules = [
+        "vfat"
+        "nls_cp437"
+        "nls_iso8859-1"
+        "usbhid"
+        "kvm-intel"
+      ];
+      luks = {
+        cryptoModules = [
+          "aes"
+          "xts"
+          "sha512"
+        ];
+        yubikeySupport = true;
+        devices = [
+          {
+            name = "luksroot";
+            device = "/dev/disk/by-partlabel/cryptroot";
+            preLVM = true;
+            yubikey = {
+              storage = {
+                device = "/dev/disk/by-partlabel/efiboot";
+              }; # storage
+            };   # yubikey
+          }
+        ]; # devices
+      }; # luks
+    }; # initrd
+  }; # boot
+
+  services = {
+    # Only keep the last 500MiB of systemd journal.
+    journald.extraConfig = "SystemMaxUse=500M";
+    logind.lidSwitch = "ignore";
+    syncthing = {
+      enable = true;
+      user = "qwerty";
+      dataDir = "/home/qwerty/.syncthing";
+      openDefaultPorts = true;
+    };
+    openssh = {
+      enable = true;
+      # Only pubkey auth - disable
+      passwordAuthentication = true; # for now ...
+      # challengeResponseAuthentication = false;
+    };
+    # for smartcards
+    pcscd.enable = true;
+    # for ios tethering
+    usbmuxd.enable = true;
+    udev.packages = with pkgs; [
+      yubikey-personalization
+    ];
+    emacs = {
+      enable = true;
+      install = true;
+      package = pkgs.emacsWP;
+      defaultEditor = true;
+    };
+  };
 
   swapDevices = [ { device = "/dev/partitions/swap"; } ];
   fileSystems."/" = {
@@ -102,208 +159,209 @@ in rec {
     # Ping is enabled
     allowPing = true;
     trustedInterfaces = [ "lo" ];
-    # Ports for syncthing
-    allowedTCPPorts = [ 22000 8080 8443 ];
-    allowedUDPPorts = [ 21027 3478 ];
+    # Ports for syncthing, xdmcp
+    allowedTCPPorts = [ 22000 8080 8443 10000];
+    allowedUDPPorts = [ 21027 3478 10000];
   };
 
- services.syncthing = {
-    enable = true;
-    user = "qwerty";
-    dataDir = "/home/qwerty/.syncthing";
-    openDefaultPorts = true;
-};
-  services.openssh = {
-    enable = true;
-
-    # Only pubkey auth - disable
-    passwordAuthentication = true; # for now ...
-    # challengeResponseAuthentication = false;
-  };
 
   users.users.qwerty = {
     uid = 1000;
     isNormalUser = true;
-    extraGroups = [ "wheel" "networkmanager" "tty" "plugdev" "networkmanager" "docker" ];
+    extraGroups = [
+      "wheel"
+      "networkmanager"
+      "tty"
+      "plugdev"
+      "docker"
+    ];
   };
+
   users.extraGroups.plugdev = { };
+
   nixpkgs = {
      config.allowUnfree = true;
      config.packageOverrides = super: let self = super.pkgs; in {
+       unstable = import unstableTarball {
+         config = config.nixpkgs.config;
+       };
        st = pkgs.callPackage ./ext-pkgs/st {
          conf = builtins.readFile ./ext-pkgs/st/st-config.h;
          patches =
            [
-       ./ext-pkgs/st/st-vertcenter-20180320-6ac8c8a.diff
-       ./ext-pkgs/st/st-alpha.diff
-       ./ext-pkgs/st/st-xresources.diff ];
+               ./ext-pkgs/st/st-vertcenter-20180320-6ac8c8a.diff
+               ./ext-pkgs/st/st-alpha.diff
+               ./ext-pkgs/st/st-xresources.diff
+           ];
        };
        cmus = pkgs.callPackage ./ext-pkgs/cmus {};
-       emacs = super.emacsWithPackages (ep: with ep; [
-format-all
-ace-link
-ace-window
-adaptive-wrap
-aggressive-indent
-company
-company-quickhelp
-flycheck
-company-nixos-options
-helm-nixos-options
-nix-mode
-nixos-options
-nix-sandbox
-ranger
-alert
-pdf-tools
-frames-only-mode
-anzu
-#archives
-async
-auto-compile
-auto-highlight-symbol
-avy
-bind-key
-bind-map
-clean-aindent-mode
-cmm-mode
-column-enforce-mode
-company
-company-ghc
-company-ghci
-dash
-define-word
-diminish
-dumb-jump
-elisp-slime-nav
-epl
-eval-sexp-fu
-evil
-evil-anzu
-evil-args
-evil-ediff
-evil-escape
-evil-exchange
-evil-iedit-state
-evil-indent-plus
-evil-lisp-state
-evil-matchit
-evil-mc
-evil-nerd-commenter
-evil-numbers
-evil-search-highlight-persist
-evil-surround
-evil-tutor
-#evil-unimpaired
-evil-visual-mark-mode
-evil-visualstar
-exec-path-from-shell
-expand-region
-eyebrowse
-f
-fancy-battery
-fill-column-indicator
-flx
-flx-ido
-flycheck
-ghc
-gntp
-#gnupg
-gnuplot
-golden-ratio
-google-translate
-goto-chg
-haskell-mode
-haskell-snippets
-helm
-helm-ag
-helm-core
-helm-descbinds
-helm-flx
-helm-hoogle
-helm-make
-helm-mode-manager
-helm-projectile
-helm-swoop
-helm-themes
-highlight
-highlight-indentation
-highlight-numbers
-highlight-parentheses
-hindent
-hlint-refactor
-hl-todo
-htmlize
-hungry-delete
-hydra
-iedit
-indent-guide
-intero
-link-hint
-linum-relative
-log4e
-lorem-ipsum
-macrostep
-move-text
-neotree
-open-junk-file
-org-bullets
-org-category-capture
-org-download
-org-mime
-org-plus-contrib
-org-pomodoro
-org-present
-org-projectile
-org-ref
-ox-reveal
-auctex
-interleave
-nyan-mode
-treemacs
-treemacs-evil
-magit
-markdown-mode
-helm-bibtex
-biblio
-biblio-core
-packed
-paradox
-parent-mode
-pcre2el
-persp-mode
-pkg-info
-popup
-popwin
-powerline
-projectile
-rainbow-delimiters
-request
-restart-emacs
-s
-smartparens
-spaceline
-spinner
-toc-org
-undo-tree
-use-package
-uuidgen
-vi-tilde-fringe
-volatile-highlights
-which-key
-winum
-ws-butler
-yasnippet
-ace-jump-helm-line
-adaptive-wrap
-spinner
-undo-tree
-]);
-
+       emacsWP = pkgs.unstable.emacsWithPackages  (
+         epkgs: with epkgs; [
+          format-all
+          ace-link
+          ace-window
+          adaptive-wrap
+          aggressive-indent
+          company
+          company-quickhelp
+          flycheck
+          company-nixos-options
+          helm-nixos-options
+          nix-mode
+          nixos-options
+          nix-sandbox
+          ranger
+          alert
+          pdf-tools
+          frames-only-mode
+          anzu
+          #archives
+          async
+          auto-compile
+          auto-highlight-symbol
+          avy
+          bind-key
+          bind-map
+          clean-aindent-mode
+          cmm-mode
+          column-enforce-mode
+          company
+          company-ghc
+          company-ghci
+          dash
+          define-word
+          diminish
+          dumb-jump
+          elisp-slime-nav
+          epl
+          eval-sexp-fu
+          evil
+          evil-anzu
+          evil-args
+          evil-ediff
+          #evil-escape
+          evil-exchange
+          evil-iedit-state
+          evil-indent-plus
+          evil-lisp-state
+          evil-matchit
+          evil-mc
+          evil-nerd-commenter
+          evil-numbers
+          evil-search-highlight-persist
+          evil-surround
+          evil-tutor
+          #evil-unimpaired
+          evil-visual-mark-mode
+          evil-visualstar
+          exec-path-from-shell
+          expand-region
+          eyebrowse
+          f
+          fancy-battery
+          fill-column-indicator
+          flx
+          flx-ido
+          flycheck
+          ghc
+          gntp
+          #gnupg
+          gnuplot
+          golden-ratio
+          google-translate
+          goto-chg
+          haskell-mode
+          haskell-snippets
+          helm
+          helm-ag
+          helm-core
+          helm-descbinds
+          helm-flx
+          helm-hoogle
+          helm-make
+          helm-mode-manager
+          helm-projectile
+          helm-swoop
+          helm-themes
+          highlight
+          highlight-indentation
+          highlight-numbers
+          highlight-parentheses
+          hindent
+          hlint-refactor
+          hl-todo
+          htmlize
+          hungry-delete
+          hydra
+          iedit
+          indent-guide
+          intero
+          link-hint
+          linum-relative
+          log4e
+          lorem-ipsum
+          macrostep
+          move-text
+          neotree
+          open-junk-file
+          org-bullets
+          org-category-capture
+          org-download
+          org-mime
+          org-plus-contrib
+          org-pomodoro
+          org-present
+          org-projectile
+          org-ref
+          org-edna
+          ox-reveal
+          auctex
+          interleave
+          nyan-mode
+          treemacs
+          treemacs-evil
+          magit
+          markdown-mode
+          helm-bibtex
+          biblio
+          biblio-core
+          packed
+          paradox
+          parent-mode
+          pcre2el
+          persp-mode
+          pkg-info
+          popup
+          popwin
+          powerline
+          projectile
+          rainbow-delimiters
+          request
+          restart-emacs
+          s
+          smartparens
+          spaceline
+          spinner
+          toc-org
+          undo-tree
+          use-package
+          uuidgen
+          vi-tilde-fringe
+          volatile-highlights
+          which-key
+          winum
+          ws-butler
+          yasnippet
+          ace-jump-helm-line
+          adaptive-wrap
+          spinner
+          undo-tree
+        ]
+      );
     };
   };
-  programs.java.enable = true;
 
+  programs.java.enable = true;
   environment.systemPackages = with pkgs;
   [
     desktop-file-utils
@@ -349,7 +407,7 @@ undo-tree
     lxqt.lxqt-openssh-askpass
     texlive.combined.scheme-full
     rtv
-    emacs
+    emacsWP
     firefox
     feh
     qutebrowser
@@ -390,26 +448,14 @@ undo-tree
     mitmproxy
   ];
 
-  # for smartcards
-  services.pcscd.enable = true;
-
-  # for ios tethering
-  services.usbmuxd.enable = true;
-
-  services.udev.packages = with pkgs; [
-    yubikey-personalization
-  ];
-  services.emacs = {
-    enable = true;
-    defaultEditor = true;
+  virtualisation = {
+    virtualbox.host = {
+      enable = true;
+      enableExtensionPack = true;
+    };
+    docker.enable = true;
   };
 
-  virtualisation.virtualbox.host = {
-    enable = true;
-    enableExtensionPack = true;
-  };
-
-  virtualisation.docker.enable = true;
   # Enable the X11 windowing system.
   services.xserver.enable = true;
   services.xserver.desktopManager = {
@@ -512,9 +558,11 @@ password-background-color = "#282A36"
 
   fonts = {
     enableFontDir = true;
+    enableGhostscriptFonts = true;
     fonts = with pkgs; [
       font-awesome-ttf
       terminus_font
+      source-code-pro
       inconsolata
       #nerdfonts # find actual pkgs you use fonts from ...
       opensans-ttf
