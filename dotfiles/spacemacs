@@ -333,12 +333,19 @@ executes.
  This function is mostly useful for variables that need to be set
 before packages are loaded. If you are unsure, you should try in setting them in
 `dotspacemacs/user-config' first."
+  (load-file "~/.emacs.d/custom/browse-at-remote.el")
+  (load-file "~/.emacs.d/custom/orgbrain2dot.el")
   (require 'org-edna)
+  (require 'org-brain)
+  (require 'ob2dot)
   (require 'org-protocol)
   (require 'org-ref-glossary)
   (require 'ox-reveal)
   (require 'frames-only-mode) ;; not sure if it's needed
   (custom-set-variables '(frames-only-mode t))
+
+  (require 'browse-at-remote)
+  (global-set-key (kbd "C-c g g") 'browse-at-remote)
 
   ;; midnite mode hook
   (add-hook 'pdf-view-mode-hook (lambda ()
@@ -355,10 +362,8 @@ before packages are loaded. If you are unsure, you should try in setting them in
                             (bg2 . "#1e242e")))
                         '(pdf-view-midnight-colors
                           (quote ("#b2b2b2" . "#282a36"))))
-
   ;; (setq org-freemind-section-format 'node)
-
-  )
+)
 
 (defun dotspacemacs/user-config ()
 
@@ -368,6 +373,8 @@ layers configuration.
 This is the place where most of your configurations should be done. Unless it is
 explicitly specified that a variable should be set before a package is loaded,
 you should place your code here."
+;;  (eval-after-load 'tramp '(setenv "SHELL" "/run/current-system/sw/bin/bash))
+  ;; Colortheme fix in terminal
   (setq mode-line-format
         (list
          '(:eval (list (nyan-create)))
@@ -384,10 +391,20 @@ you should place your code here."
         bibtex-completion-bibliography "~/org/references/papers.bib" ;; writing completion
         bibtex-completion-notes-path "~/org/references/papers.org"
         )
+  (defun my/org-add-ids-to-headlines-in-file ()
+    "Add ID properties to all headlines in the current file which
+do not already have one."
+    (interactive)
+    (org-map-entries 'org-id-get-create))
+  (add-hook 'org-mode-hook
+            (lambda ()
+              (add-hook 'before-save-hook 'my/org-add-ids-to-headlines-in-file nil 'local)
+              (add-hook 'before-save-hook 'org-brain-update-id-locations)))
 
   (with-eval-after-load 'org
     (org-edna-load)
     (add-to-list 'org-modules 'org-protocol)
+    (add-to-list 'org-modules 'org-id)
     (add-to-list 'org-modules 'org-ref-glossary)
     ;; Kill the frame if one was created for the capture
     (defvar kk/delete-frame-after-capture 0 "Whether to delete the last frame after the current capture")
@@ -453,6 +470,34 @@ you should place your code here."
   )
   ;;(add-to-list 'company-capf 'company-backends-nix-mode)
   (add-to-list 'company-backends 'company-nixos-options)
+
+  (defface aa2u-face '((t . nil))
+    "Face for aa2u box drawing characters")
+  (advice-add #'aa2u-1c :filter-return
+              (lambda (str) (propertize str 'face 'aa2u-face)))
+  (defun aa2u-org-brain-buffer ()
+    (let ((inhibit-read-only t))
+      (make-local-variable 'face-remapping-alist)
+      (add-to-list 'face-remapping-alist
+                   '(aa2u-face . org-brain-wires))
+      (ignore-errors (aa2u (point-min) (point-max)))))
+  (with-eval-after-load 'org-brain
+    (add-hook 'org-brain-after-visualize-hook #'aa2u-org-brain-buffer))
+
+  (use-package org-brain :ensure t
+    :init
+    (setq org-brain-path "~/org/")
+    ;; For Evil users
+    (with-eval-after-load 'evil
+      (evil-set-initial-state 'org-brain-visualize-mode 'emacs))
+    :config
+    (setq org-id-track-globally t)
+    (setq org-id-locations-file "~/.emacs.d/.org-id-locations")
+    (push '("b" "Brain" plain (function org-brain-goto-end)
+            "* %i%?" :empty-lines 1)
+          org-capture-templates)
+    (setq org-brain-visualize-default-choices 'all)
+    (setq org-brain-title-max-length 28))
 
   ;; (use-package nix-sandbox
   ;;  (setq flycheck-command-wrapper-function
