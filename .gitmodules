@@ -1,0 +1,6 @@
+[submodule "channels/nixpkgs-stable"]
+	path = channels/nixpkgs-stable
+	url = https://github.com/nixos/nixpkgs-channels.git
+[submodule "channels/nixpkgs-unstable"]
+	path = channels/nixpkgs-unstable
+	url = https://github.com/nixos/nixpkgs-channels.git

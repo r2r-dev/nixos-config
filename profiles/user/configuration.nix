@@ -19,7 +19,7 @@ in rec {
       builtins.fetchTarball
       "https://github.com/rycee/home-manager/archive/release-18.09.tar.gz"
     }/nixos"
-    ./hardware-configuration.nix
+    ../hardware/x260.nix
   ];
 
   system.stateVersion = "18.09"; # Did you read the comment?
